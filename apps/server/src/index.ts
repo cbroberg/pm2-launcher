@@ -54,7 +54,11 @@ async function handleStatic(reqPath: string): Promise<Response | null> {
       if (direct) return direct;
     }
   }
-  return serveFile(join(WEB_DIST, 'index.html'));
+  // SPA fallback — always fresh so browser fetches the latest JS hash
+  const html = await serveFile(join(WEB_DIST, 'index.html'));
+  if (!html) return null;
+  html.headers.set('Cache-Control', 'no-store');
+  return html;
 }
 
 if (existsSync(WEB_DIST)) {

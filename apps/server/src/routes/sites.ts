@@ -34,9 +34,12 @@ async function buildSiteList(): Promise<Site[]> {
   for (const name of names) {
     const eco = ecoByName.get(name);
     const pm = pmByName.get(name);
+    const pmEnv = pm?.env ?? {};
+    const portFromPm = pmEnv.PORT ? Number(pmEnv.PORT) : undefined;
     const base: SiteInput = eco ?? {
       name,
       cwd: '',
+      port: portFromPm,
       env: {},
       autorestart: true,
       instances: 1,

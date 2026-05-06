@@ -1,47 +1,50 @@
-import pm2 from 'pm2';
 import type { SiteInput, SiteRuntime, SiteStatus } from '@pm2-launcher/shared';
 
-let connected = false;
-
-function connect(): Promise<void> {
-  if (connected) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    pm2.connect(false, (err) => {
-      if (err) return reject(err);
-      connected = true;
-      resolve();
-    });
+async function pm2(args: string[]): Promise<string> {
+  const proc = Bun.spawn(['pm2', ...args], {
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
-}
-
-export async function ensureConnected(): Promise<void> {
-  await connect();
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+  await proc.exited;
+  if (proc.exitCode !== 0) {
+    const msg = stderr.trim() || stdout.trim() || `pm2 ${args[0]} exited ${proc.exitCode}`;
+    throw new Error(msg);
+  }
+  return stdout;
 }
 
 type PM2Proc = {
-  name?: string;
-  pm_id?: number;
-  pid?: number;
-  pm2_env?: {
-    status?: string;
+  name: string;
+  pm_id: number;
+  pid: number | null;
+  pm2_env: {
+    status: string;
     pm_uptime?: number;
-    restart_time?: number;
-    unstable_restarts?: number;
-    pm_out_log_path?: string;
-    pm_err_log_path?: string;
-    env?: Record<string, string>;
+    restart_time: number;
+    unstable_restarts: number;
+    pm_out_log_path: string;
+    pm_err_log_path: string;
+    env: Record<string, string>;
+    cwd?: string;
+    pm_exec_path?: string;
+    exec_interpreter?: string;
+    args?: string | string[];
   };
-  monit?: { cpu?: number; memory?: number };
+  monit: { cpu: number; memory: number };
 };
 
 export async function listProcesses(): Promise<
   Array<{ name: string; runtime: SiteRuntime; env: Record<string, string> }>
 > {
-  await connect();
-  const list = await new Promise<PM2Proc[]>((resolve, reject) => {
-    pm2.list((err, l) => (err ? reject(err) : resolve(l as PM2Proc[])));
-  });
-
+  const raw = await pm2(['jlist']);
+  // pm2 may print status lines like "[PM2] ..." before the JSON array
+  const jsonStart = raw.indexOf('[');
+  const jsonStr = jsonStart >= 0 ? raw.slice(jsonStart) : raw;
+  const list = JSON.parse(jsonStr) as PM2Proc[];
   const now = Date.now();
   return list
     .filter((p) => p.name)
@@ -50,7 +53,7 @@ export async function listProcesses(): Promise<
       const status = (p.pm2_env?.status ?? 'unknown') as SiteStatus;
       const startedAt = p.pm2_env?.pm_uptime;
       return {
-        name: p.name as string,
+        name: p.name,
         env,
         runtime: {
           pmId: p.pm_id ?? null,
@@ -68,130 +71,85 @@ export async function listProcesses(): Promise<
     });
 }
 
-type StartOptions = {
-  name: string;
-  cwd: string;
-  script?: string;
-  interpreter?: string;
-  args?: string;
-  instances?: number;
-  exec_mode?: 'fork' | 'cluster';
-  autorestart?: boolean;
-  env?: Record<string, string>;
-};
-
-const pm2Start = pm2.start as unknown as (
-  opts: StartOptions,
-  cb: (err: Error | null) => void,
-) => void;
-
 export async function startProcess(input: SiteInput): Promise<void> {
-  await connect();
-  const env: Record<string, string> = { ...input.env, PM2_LAUNCHER: '1' };
-  if (input.port !== undefined) env.PORT = String(input.port);
-  await new Promise<void>((resolve, reject) => {
-    pm2Start(
-      {
-        name: input.name,
-        cwd: input.cwd,
-        script: input.script,
-        interpreter: input.interpreter,
-        args: input.args,
-        instances: input.instances,
-        exec_mode: input.instances > 1 ? 'cluster' : 'fork',
-        autorestart: input.autorestart,
-        env,
-      },
-      (err) => (err ? reject(err) : resolve()),
-    );
-  });
+  const { ECOSYSTEM_PATH } = await import('./config');
+  await pm2(['start', ECOSYSTEM_PATH, '--only', input.name]);
 }
 
 export async function stopProcess(name: string): Promise<void> {
-  await connect();
-  await new Promise<void>((resolve, reject) => {
-    pm2.stop(name, (err) => (err ? reject(err) : resolve()));
-  });
+  await pm2(['stop', name]);
 }
 
 export async function restartProcess(name: string): Promise<void> {
-  await connect();
-  await new Promise<void>((resolve, reject) => {
-    pm2.restart(name, (err) => (err ? reject(err) : resolve()));
-  });
+  await pm2(['restart', name]);
 }
 
 export async function deleteProcess(name: string): Promise<void> {
-  await connect();
-  await new Promise<void>((resolve, reject) => {
-    pm2.delete(name, (err) => (err ? reject(err) : resolve()));
-  });
+  await pm2(['delete', name]);
 }
 
 export async function reloadProcess(name: string): Promise<void> {
-  await connect();
-  await new Promise<void>((resolve, reject) => {
-    pm2.reload(name, (err) => (err ? reject(err) : resolve()));
-  });
+  await pm2(['reload', name]);
 }
 
 export async function dump(): Promise<void> {
-  await connect();
-  await new Promise<void>((resolve, reject) => {
-    pm2.dump((err) => (err ? reject(err) : resolve()));
-  });
-}
-
-type LogEvent = {
-  data: string;
-  process: { name: string; pm_id: number };
-  at: number;
-};
-
-type LogBus = {
-  on: (event: string, cb: (data: unknown) => void) => void;
-  off?: (event: string, cb: (data: unknown) => void) => void;
-  close?: () => void;
-};
-
-let busPromise: Promise<LogBus> | null = null;
-
-function getBus(): Promise<LogBus> {
-  if (busPromise) return busPromise;
-  busPromise = (async () => {
-    await connect();
-    return new Promise<LogBus>((resolve, reject) => {
-      pm2.launchBus((err, bus) => {
-        if (err) {
-          busPromise = null;
-          return reject(err);
-        }
-        resolve(bus as unknown as LogBus);
-      });
-    });
-  })();
-  return busPromise;
+  await pm2(['save']);
 }
 
 export async function subscribeLogs(
   name: string,
   onLine: (line: { stream: 'out' | 'err'; data: string; at: number }) => void,
 ): Promise<() => void> {
-  const bus = await getBus();
-  const handleOut = (raw: unknown): void => {
-    const evt = raw as LogEvent;
-    if (evt.process?.name !== name) return;
-    onLine({ stream: 'out', data: evt.data, at: evt.at ?? Date.now() });
-  };
-  const handleErr = (raw: unknown): void => {
-    const evt = raw as LogEvent;
-    if (evt.process?.name !== name) return;
-    onLine({ stream: 'err', data: evt.data, at: evt.at ?? Date.now() });
-  };
-  bus.on('log:out', handleOut);
-  bus.on('log:err', handleErr);
+  const procs = await listProcesses();
+  const proc = procs.find((p) => p.name === name);
+  const outLog = proc?.runtime.outLog;
+  const errLog = proc?.runtime.errLog;
+
+  const tails: ReturnType<typeof Bun.spawn>[] = [];
+  const cleanups: (() => void)[] = [];
+
+  async function tailFile(
+    path: string,
+    stream: 'out' | 'err',
+  ): Promise<void> {
+    if (!path) return;
+    const child = Bun.spawn(['tail', '-F', '-n', '0', path], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+    });
+    tails.push(child);
+    const reader = child.stdout.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    const pump = async (): Promise<void> => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() ?? '';
+          for (const line of lines) {
+            onLine({ stream, data: line, at: Date.now() });
+          }
+        }
+      } catch {
+        // closed
+      }
+    };
+    pump().catch(() => {});
+  }
+
+  if (outLog) await tailFile(outLog, 'out');
+  if (errLog) await tailFile(errLog, 'err');
+
   return () => {
-    bus.off?.('log:out', handleOut);
-    bus.off?.('log:err', handleErr);
+    for (const child of tails) {
+      try { child.kill(); } catch {}
+    }
+    for (const fn of cleanups) fn();
   };
 }
+
+// kept for compatibility — no-op since CLI doesn't need a persistent connection
+export async function ensureConnected(): Promise<void> {}
