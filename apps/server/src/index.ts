@@ -14,6 +14,11 @@ const app = new Hono();
 app.get('/api/health', (c) => c.json({ ok: true }));
 app.route('/api/sites', sitesRoute);
 
+app.onError((err, c) => {
+  console.error('[pm2-launcher] unhandled error:', err);
+  return c.json({ error: err.message ?? 'Internal server error' }, 500);
+});
+
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',

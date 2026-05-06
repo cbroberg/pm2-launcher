@@ -159,7 +159,12 @@ export function App(): JSX.Element {
     <div class="min-h-screen">
       <header class="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
         <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <h1 class="text-lg font-semibold">PM2 Launcher</h1>
+          <h1 class="text-lg font-semibold">
+            PM2 Launcher
+            <span class="ml-2 text-xs font-normal text-muted-foreground">
+              :{window.location.port || '80'}
+            </span>
+          </h1>
           <div class="ml-2 flex items-center gap-2 text-xs text-muted-foreground">
             <Badge variant="outline">{stats.total} total</Badge>
             <Badge variant="online">{stats.online} online</Badge>

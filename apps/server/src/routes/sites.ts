@@ -125,16 +125,13 @@ sitesRoute.post('/:name/start', async (c) => {
   if (app) {
     await startProcess(app);
   } else {
-    // already in pm2 from outside launcher
-    await reloadProcess(name).catch(() => undefined);
+    await restartProcess(name);
   }
-  await dump();
   return c.json({ ok: true });
 });
 
 sitesRoute.post('/:name/stop', async (c) => {
   await stopProcess(c.req.param('name'));
-  await dump();
   return c.json({ ok: true });
 });
 

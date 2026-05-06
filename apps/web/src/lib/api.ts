@@ -9,9 +9,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   const text = await res.text();
-  const body = text ? JSON.parse(text) : null;
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    // server returned non-JSON (e.g. plain-text error)
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`);
+  }
   if (!res.ok) {
-    const msg = body?.error ?? `HTTP ${res.status}`;
+    const msg = (body as { error?: string } | null)?.error ?? `HTTP ${res.status}`;
     throw new Error(msg);
   }
   return body as T;
