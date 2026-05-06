@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/*
+ * pm2-launcher theme — same OKLCH neutral scale as @webhouse/buddy.
+ * Dark by default, `class="light"` on <html> for light mode.
+ */
+@theme {
+  --radius: 0.5rem;
+
+  --color-background: oklch(0.11 0.01 260);
+  --color-foreground: oklch(0.97 0.01 260);
+
+  --color-card: oklch(0.15 0.01 260);
+  --color-card-foreground: oklch(0.97 0.01 260);
+
+  --color-popover: oklch(0.15 0.01 260);
+  --color-popover-foreground: oklch(0.97 0.01 260);
+
+  --color-primary: oklch(0.97 0.01 260);
+  --color-primary-foreground: oklch(0.18 0.01 260);
+
+  --color-secondary: oklch(0.21 0.01 260);
+  --color-secondary-foreground: oklch(0.97 0.01 260);
+
+  --color-muted: oklch(0.21 0.01 260);
+  --color-muted-foreground: oklch(0.72 0.01 260);
+
+  --color-accent: oklch(0.21 0.01 260);
+  --color-accent-foreground: oklch(0.97 0.01 260);
+
+  --color-destructive: oklch(0.62 0.22 25);
+  --color-destructive-foreground: oklch(0.97 0.01 260);
+
+  --color-border: oklch(0.24 0.01 260);
+  --color-input: oklch(0.24 0.01 260);
+  --color-ring: oklch(0.72 0.01 260);
+}
+
+html.light {
+  --color-background: #FFFCF5;
+  --color-foreground: oklch(0.18 0.01 260);
+
+  --color-card: oklch(0.995 0.005 85);
+  --color-card-foreground: oklch(0.18 0.01 260);
+
+  --color-popover: oklch(0.995 0.005 85);
+  --color-popover-foreground: oklch(0.18 0.01 260);
+
+  --color-primary: oklch(0.25 0.01 260);
+  --color-primary-foreground: #FFFCF5;
+
+  --color-secondary: oklch(0.95 0.01 85);
+  --color-secondary-foreground: oklch(0.25 0.01 260);
+
+  --color-muted: oklch(0.95 0.01 85);
+  --color-muted-foreground: oklch(0.45 0.01 260);
+
+  --color-accent: oklch(0.95 0.01 85);
+  --color-accent-foreground: oklch(0.25 0.01 260);
+
+  --color-destructive: oklch(0.55 0.22 25);
+  --color-destructive-foreground: #FFFCF5;
+
+  --color-border: oklch(0.88 0.01 85);
+  --color-input: oklch(0.88 0.01 85);
+  --color-ring: oklch(0.55 0.01 260);
+}
+
+html {
+  font-size: 16px;
+}
+
+html,
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family:
+    "JetBrains Mono",
+    ui-monospace,
+    "Fira Code",
+    "Cascadia Code",
+    monospace;
+  font-weight: 450;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+
+:root.light,
+:root.light body {
+  color-scheme: light;
+}
+
+body {
+  min-height: 100vh;
+}
